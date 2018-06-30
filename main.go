@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -27,11 +28,16 @@ func main() {
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.Heartbeat("/ping"))
+	r.Use(middleware.Compress(6))
+
+	r.Use(middleware.RequestID)
+	r.Use(middleware.Timeout(60 * time.Second))
 
 	for path, endpoints := range serviceRegistry {
 		for _, endpoint := range endpoints {
 			fmt.Println("registring", path, endpoint)
-			r.Get(path, func(w http.ResponseWriter, r *http.Request) {
+			r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 				proxy := httputil.NewSingleHostReverseProxy(&url.URL{
 					Scheme: "http",
 					Host:   endpoint,

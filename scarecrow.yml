@@ -1,7 +1,12 @@
 listen: :8000
 metrics: true
+gzip: true
 verbose: false
 logging: scarecrow.log
+
+domain: example.com
+tls: true
+email: john@doe.com
 
 registry:
   - service:
