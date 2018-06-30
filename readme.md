@@ -1,6 +1,6 @@
 # Scarecrow - Minimal configuration reverse proxy
 
-[![Build Status](https://travis-ci.org/mitjafelicijan/scarecrow.svg?branch=master)](https://travis-ci.org/mitjafelicijan/scarecrow)
+[![Build Status](https://travis-ci.org/mitjafelicijan/scarecrow.svg?branch=develop)](https://travis-ci.org/mitjafelicijan/scarecrow)
 
 ### Ideas
 
