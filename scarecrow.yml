@@ -1,0 +1,12 @@
+listen: :8000
+metrics: true
+verbose: false
+logging: scarecrow.log
+
+registry:
+  - service:
+    path: /
+    proxy: localhost:9002
+  - service:
+    path: /v1
+    proxy: localhost:9001
