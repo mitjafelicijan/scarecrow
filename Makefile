@@ -1,4 +1,4 @@
-all:
+travis-ci: # must on top of the file
 	@echo "add travisci commands here"
 
 run:
