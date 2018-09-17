@@ -1,51 +1,100 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/gobuffalo/packr"
 )
 
-type ServiceRegistry map[string][]string
-
-var serviceRegistry ServiceRegistry
+// RateCouter ...
 
 func main() {
 
-	fmt.Println("=============================>")
+	rateCounterCleanup()
 
-	serviceRegistry = ServiceRegistry{
-		"/v1/*": {"localhost:9010"},
-		"/v2/*": {"localhost:9020"},
-	}
+	// parsing config file
+	config = parseConfigFile("scarecrow.yml")
 
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.Heartbeat("/ping"))
-	r.Use(middleware.Compress(6))
-
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Timeout(60 * time.Second))
-
-	for path, endpoints := range serviceRegistry {
-		for _, endpoint := range endpoints {
-			fmt.Println("registring", path, endpoint)
-			r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-				proxy := httputil.NewSingleHostReverseProxy(&url.URL{
-					Scheme: "http",
-					Host:   endpoint,
-				})
-				proxy.ServeHTTP(w, r)
-			})
+	if config.Logging {
+		log.SetOutput(os.Stdout)
+		if config.Verbose {
+			log.SetFlags(log.LstdFlags | log.Lshortfile)
 		}
+		r.Use(middleware.Logger)
 	}
 
-	http.ListenAndServe(":9000", r)
+	if config.Metrics {
+		r.Use(RateCouterMiddleware)
+	}
+
+	if config.GZIP {
+		r.Use(middleware.Compress(6))
+	}
+
+	if config.Heartbeat {
+		r.Use(middleware.Heartbeat("/_heartbeat"))
+	}
+
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	for _, endpoint := range config.ServiceRegistry {
+		log.Println(">> registring", endpoint.Path, endpoint.Proxy)
+		path := endpoint.Path
+		proxy := endpoint.Proxy
+		r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			proxy := httputil.NewSingleHostReverseProxy(&url.URL{
+				Scheme: "http",
+				Host:   proxy,
+			})
+			proxy.ServeHTTP(w, r)
+		})
+
+	}
+
+	if config.Console {
+		r.Get("/_stats", func(w http.ResponseWriter, r *http.Request) {
+			var payload = make(map[string]interface{})
+			payload["services"] = config.ServiceRegistry
+			payload["metrics"] = rateCounter
+
+			w.Header().Set("Content-Type", "application/javascript")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(payload)
+			return
+		})
+
+		r.Get("/_console", func(w http.ResponseWriter, r *http.Request) {
+			box := packr.NewBox("./console")
+			html := box.String("index.html")
+
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(string(html)))
+			return
+		})
+	}
+
+	// server handler
+	server := &http.Server{
+		Handler:      r,
+		Addr:         config.Listen,
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	log.Println("==============================")
+	log.Println("listening on", config.Listen)
+	log.Fatal(server.ListenAndServe())
+
 }

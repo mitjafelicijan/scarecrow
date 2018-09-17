@@ -1,17 +1,19 @@
-listen: :8000
+listen: :9000
 metrics: true
 gzip: true
-verbose: false
-logging: scarecrow.log
+logging: true
+verbose: true
+heartbeat: true
+console: true
 
 domain: example.com
 tls: true
 email: john@doe.com
 
 registry:
-  - service:
-    path: /
-    proxy: localhost:9002
-  - service:
-    path: /v1
-    proxy: localhost:9001
+  - path: /v1*
+    proxy: localhost:9010
+  - path: /v2*
+    proxy: localhost:9020
+  - path: /v3*
+    proxy: localhost:9030
