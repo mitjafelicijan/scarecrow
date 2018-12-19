@@ -11,14 +11,19 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/gobuffalo/packr"
+	"github.com/thoas/stats"
 )
 
-// RateCouter ...
+var Stats *stats.Stats = stats.New()
 
 func main() {
 
-	rateCounterCleanup()
+	// https://stackoverflow.com/questions/37321760/how-to-set-up-lets-encrypt-for-a-go-server-application
+	//certManager := autocert.Manager{
+	//	Prompt:     autocert.AcceptTOS,
+	//	HostPolicy: autocert.HostWhitelist("example.com"), //Your domain here
+	//	Cache:      autocert.DirCache("certs"),            //Folder for storing certificates
+	//}
 
 	// parsing config file
 	config = parseConfigFile("scarecrow.yml")
@@ -34,7 +39,7 @@ func main() {
 	}
 
 	if config.Metrics {
-		r.Use(RateCouterMiddleware)
+		r.Use(StatsMiddleware(Stats))
 	}
 
 	if config.GZIP {
@@ -66,21 +71,11 @@ func main() {
 		r.Get("/_stats", func(w http.ResponseWriter, r *http.Request) {
 			var payload = make(map[string]interface{})
 			payload["services"] = config.ServiceRegistry
-			payload["metrics"] = rateCounter
+			payload["stats"] = Stats.Data()
 
 			w.Header().Set("Content-Type", "application/javascript")
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(payload)
-			return
-		})
-
-		r.Get("/_console", func(w http.ResponseWriter, r *http.Request) {
-			box := packr.NewBox("./console")
-			html := box.String("index.html")
-
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(string(html)))
 			return
 		})
 	}

@@ -6,8 +6,8 @@ verbose: true
 heartbeat: true
 console: true
 
-domain: example.com
 tls: true
+domain: example.com
 email: john@doe.com
 
 registry:
