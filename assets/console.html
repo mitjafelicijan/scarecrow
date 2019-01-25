@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+
+<head>
+
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+
+  <title>Scarecrow</title>
+
+  <style>
+    td,
+    th {
+      padding: 5px;
+    }
+
+    footer {
+      font-size: 80%;
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <section id="stats">
+    <h2>Statistics and metrics</h2>
+    <table border="1">
+      <tbody>
+        <tr>
+          <td><b>Uptime</b></td>
+          <td class="uptime"></td>
+        </tr>
+        <tr>
+          <td><b>Average response time</b></td>
+          <td class="average_response_time"></td>
+        </tr>
+        <tr>
+          <td><b>Total response time</b></td>
+          <td class="total_response_time"></td>
+        </tr>
+        <tr>
+          <td><b>Total request count</b></td>
+          <td class="total_count"></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="status_codes">
+    <h2>Request distribution by HTTP status code</h2>
+    <table border="1">
+      <thead>
+        <tr>
+          <th>Status code</th>
+          <th>Request count</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="registry">
+    <h2>Service registry</h2>
+    <table border="1">
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>Reverse proxy Target</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="https://github.com/mitjafelicijan/scarecrow/" target="_blank">github.com/mitjafelicijan/scarecrow</a></p>
+  </footer>
+
+  <script src="//cdn.plot.ly/plotly-1.2.0.min.js"></script>
+  <script>
+
+    (function () {
+
+      Object.size = function (obj) {
+        var size = 0, key;
+        for (key in obj) {
+          if (obj.hasOwnProperty(key)) size++;
+        }
+        return size;
+      };
+
+      const fetchConfig = () => {
+        fetch('config').then(res => res.json()).then((payload) => {
+          if (Object.size(payload.registry) > 0) {
+            let tableBody = document.querySelector('#registry tbody');
+            for (key in payload.registry) {
+              let row = tableBody.insertRow(-1);
+              let pathCell = row.insertCell(0);
+              let targetCell = row.insertCell(1);
+              pathCell.innerHTML = payload.registry[key].path;
+              targetCell.innerHTML = payload.registry[key].proxy;
+            }
+          }
+        }).catch(err => {
+          console.log(err);
+        });
+      }
+
+      const fetchStats = () => {
+        fetch('stats').then(res => res.json()).then((payload) => {
+          document.querySelector('#stats .uptime').innerHTML = payload.uptime;
+          document.querySelector('#stats .average_response_time').innerHTML = payload.average_response_time;
+          document.querySelector('#stats .total_response_time').innerHTML = payload.total_response_time;
+          document.querySelector('#stats .total_count').innerHTML = payload.total_count;
+
+          let tableBody = document.querySelector('#status_codes tbody');
+          tableBody.innerHTML = '';
+          for (var key in payload.total_status_code_count) {
+            if (payload.total_status_code_count.hasOwnProperty(key)) {
+              let row = tableBody.insertRow(-1);
+              let statusCell = row.insertCell(0);
+              let countCell = row.insertCell(1);
+              statusCell.innerHTML = key;
+              countCell.innerHTML = payload.total_status_code_count[key];
+            }
+          }
+        }).catch(err => {
+          console.log(err);
+        });
+      }
+
+      // initial fetch
+      fetchConfig();
+      fetchStats();
+
+      // fetch new data by polling every 5s
+      setInterval(() => {
+        fetchStats();
+      }, 5000);
+
+    })();
+
+  </script>
+
+</body>
+
+</html>

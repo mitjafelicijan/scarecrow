@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+
+<head>
+
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+
+  <title>Scarecrow</title>
+
+  <link rel="stylesheet" href="//cdn.rawgit.com/mitjafelicijan/spartan/v1.7/dist/spartan.min.css">
+
+  <style>
+    body {
+      margin: 30px 0 50px 0;
+    }
+
+    .modebar {
+      display: none !important;
+    }
+
+    .rate-counter-placeholder {
+      border: 2px solid #eee;
+      padding: 20px;
+      margin-top: 30px;
+    }
+
+    #rate-counter {
+      display: block;
+      width: 100%;
+      height: 300px;
+    }
+
+    #services {
+      margin-top: 30px;
+    }
+
+    header h4 {
+      padding-bottom: 20px;
+      border-bottom: 2px solid #eee;
+
+    }
+
+    header img {
+      height: 30px;
+      vertical-align: bottom;
+      margin-right: 5px;
+    }
+
+    section.rate,
+    section.services {
+      display: none;
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <section class="wrapper rate">
+    <div class="row">
+      <div class="col-12">
+        <h5>Request rate counter</h5>
+        <div class="rate-counter-placeholder">
+          <div id="rate-counter"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrapper services">
+    <div class="row">
+      <div class="col-12">
+        <h5>Service registry</h5>
+        <table id="services" class="border">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Reverse proxy Target</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <script src="//cdn.plot.ly/plotly-1.2.0.min.js"></script>
+  <script>
+
+    (function () {
+
+      Object.size = function (obj) {
+        var size = 0, key;
+        for (key in obj) {
+          if (obj.hasOwnProperty(key)) size++;
+        }
+        return size;
+      };
+
+      fetch("/_stats").then(res => res.json()).then((payload) => {
+
+        // plotting request rate chart
+        if (Object.size(payload.metrics) > 0) {
+          document.querySelector("section.rate").style.display = "block";
+          let traces = { x: [], y: [] }
+          for (key in payload.metrics) {
+            let datePlaceholder = new Date(0);
+            datePlaceholder.setUTCSeconds(parseInt(key * 60));
+            traces.x.push(datePlaceholder);
+            traces.y.push(payload.metrics[key]);
+          }
+
+          let plotter = Plotly.plot(document.querySelector("#rate-counter"), [traces], {
+            margin: { l: 40, r: 0, b: 30, t: 30, pad: 0 },
+            yaxis: {
+              title: "requests per minute",
+              titlefont: {
+                size: 12
+              }
+            }
+          });
+        }
+
+        // rendering services
+        if (Object.size(payload.services) > 0) {
+          document.querySelector("section.services").style.display = "block";
+          let tableBody = document.querySelector("#services tbody");
+          for (key in payload.services) {
+            let row = tableBody.insertRow(-1);
+            let pathCell = row.insertCell(0);
+            let targetCell = row.insertCell(1);
+
+            pathCell.innerHTML = payload.services[key].Path;
+            targetCell.innerHTML = payload.services[key].Proxy;
+          }
+        }
+
+      }).catch(err => {
+        console.log(err);
+      });
+
+    })();
+
+  </script>
+
+</body>
+
+</html>

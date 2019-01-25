@@ -1,10 +1,18 @@
 listen: :9000
-metrics: true
 gzip: true
-logging: true
+logging: false
 verbose: true
 heartbeat: true
 console: true
+metrics: true
+
+# duration of max time allocated for request/response in seconds
+timeout:
+  read: 15
+  write: 15
+
+# 0 means no db, in seconds, if console not enabled this is omitted
+stats-db-freq: 30
 
 tls: true
 domain: example.com

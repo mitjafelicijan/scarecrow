@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -11,10 +12,15 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/gobuffalo/packr/v2"
 	"github.com/thoas/stats"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
+// Stats ...
 var Stats *stats.Stats = stats.New()
+var db *sql.DB
 
 func main() {
 
@@ -29,6 +35,30 @@ func main() {
 	config = parseConfigFile("scarecrow.yml")
 
 	r := chi.NewRouter()
+
+	if config.StatsDBFreq > 0 {
+		db, err := sql.Open("sqlite3", "./stats.db")
+		if err != nil {
+			log.Fatal("cannot create database file for storing stats with error", err)
+		}
+
+		stmt, err := db.Prepare(`create table if not exists stats (
+			ts                        int     default (current_timestamp) primary key,
+			uptime_sec                real,
+			total_status_code_count   text,
+			total_count               integer,
+			total_response_time_sec   real,
+			average_response_time_sec real
+		);`)
+
+		if err != nil {
+			log.Fatal("cannot create table with error", err)
+		}
+
+		stmt.Exec()
+
+		go startStatsDBSavePolling(config.StatsDBFreq, db)
+	}
 
 	if config.Logging {
 		log.SetOutput(os.Stdout)
@@ -64,18 +94,44 @@ func main() {
 			})
 			proxy.ServeHTTP(w, r)
 		})
-
 	}
 
-	if config.Console {
-		r.Get("/_stats", func(w http.ResponseWriter, r *http.Request) {
-			var payload = make(map[string]interface{})
-			payload["services"] = config.ServiceRegistry
-			payload["stats"] = Stats.Data()
+	// custom 404 page, also 500 could be added here
+	// user would add error html templates to yaml file
+	/*r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404"))
+		return
+	})*/
 
+	if config.Console {
+		r.Get("/_console/stats", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/javascript")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(payload)
+			json.NewEncoder(w).Encode(Stats.Data())
+			return
+		})
+
+		r.Get("/_console/config", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/javascript")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(config)
+			return
+		})
+
+		r.Get("/_console/log", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("log"))
+		})
+
+		box := packr.New("assets", "./assets")
+		html, _ := box.FindString("console.html")
+
+		r.Get("/_console/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(html))
 			return
 		})
 	}
@@ -84,12 +140,12 @@ func main() {
 	server := &http.Server{
 		Handler:      r,
 		Addr:         config.Listen,
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout: time.Duration(config.Timeout.Write) * time.Second,
+		ReadTimeout:  time.Duration(config.Timeout.Read) * time.Second,
 	}
 
 	log.Println("==============================")
-	log.Println("listening on", config.Listen)
+	log.Printf("listening on http://0.0.0.0%s\n", config.Listen)
 	log.Fatal(server.ListenAndServe())
 
 }
